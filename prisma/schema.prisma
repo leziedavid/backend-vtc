@@ -1,0 +1,317 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // ou mysql selon ton choix
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  PARTENAIRE
+  DRIVER
+  USER
+}
+
+enum PaymentMethod {
+  COD
+  STRIPE
+  MOBILE_MONEY
+}
+
+enum VehicleStatus {
+  AVAILABLE
+  MAINTENANCE
+  OUT_OF_SERVICE
+}
+
+// Type de message
+enum MessageSender {
+  user
+  support
+}
+
+// --- ENUMS pour pub ---
+enum TypeFile {
+  IMAGE
+  VIDEO
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+}
+
+enum TransactionType {
+  DEPOSIT
+  PAYMENT
+  COMMISSION
+  REFUND
+}
+
+enum UserStatus {
+  INACTIVE
+  ACTIVE
+  BLOCKED
+}
+
+// 🔹 Enum pour rendre le statut plus propre et sécurisé
+enum CommandeStatus {
+  PENDING // En attente (créée par le client)
+  CONFIRMED // Acceptée / validée par le chauffeur
+  CANCELLED // Annulée (par client ou chauffeur)
+  STARTED // Trajet démarré (le client ne peut plus annuler)
+  COMPLETED // Trajet terminé
+}
+
+// 🔹 Enum pour le statut des trajets
+enum TrajetStatus {
+  PENDING // Trajet créé, en attente de confirmation
+  CONFIRMED // Trajet accepté / validé
+  STARTED // Trajet démarré
+  COMPLETED // Trajet terminé
+  CANCELLED // Trajet annulé
+}
+
+model User {
+  id              String        @id @default(uuid())
+  email           String        @unique
+  password        String
+  name            String
+  phone           String        @unique
+  role            Role          @default(USER)
+  status          UserStatus    @default(INACTIVE)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  // Relations
+  partner         Partner?      @relation(fields: [partnerId], references: [id])
+  partnerId       String?
+  driverTrajets   Trajet[]      @relation("DriverTrajets")
+  commandes       Commande[]
+  vehicles        Vehicle[]     @relation("VehicleDrivers") // ✅ plusieurs véhicules que l'utilisateur conduit
+  messagesSent    Message[]     @relation("UserMessages")
+  wallet          Wallet?
+  // 🆕 Nouvelles relations
+  addedSliders    Slider[]
+  addedPublicites Publicite[]
+  addedReglages   Reglage[]
+  // Transactions
+  transactions    Transaction[]
+}
+
+model Partner {
+  id        String    @id @default(uuid())
+  name      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  // Relations
+  users     User[]
+  fleet     Vehicle[]
+}
+
+model VehicleType {
+  id          String     @id @default(uuid())
+  name        String
+  description String?
+  price       Float
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  vehicles    Vehicle[]
+  commandes   Commande[] // 🔹 Ajout de la relation inverse
+}
+
+model Vehicle {
+  id           String        @id @default(uuid())
+  registration String        @unique
+  type         VehicleType   @relation(fields: [typeId], references: [id])
+  typeId       String
+  partner      Partner?      @relation(fields: [partnerId], references: [id])
+  partnerId    String?
+  drivers      User[]        @relation("VehicleDrivers")
+  marque       String // ex: Toyota, Mercedes
+  models       String        @default("") // ex: Corolla, C-Class  <-- anciennement "model"
+  year         Int // année de fabrication
+  color        String? // couleur du véhicule
+  mileage      Int? // kilométrage actuel
+  seats        Int? // nombre de sièges
+  status       VehicleStatus @default(AVAILABLE)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  trajets      Trajet[]
+}
+
+model Trajet {
+  id                String     @id @default(uuid())
+  driver            User       @relation("DriverTrajets", fields: [driverId], references: [id])
+  driverId          String
+  vehicle           Vehicle    @relation(fields: [vehicleId], references: [id])
+  distance          Float?
+  vehicleId         String
+  departure         String
+  departureGPS      Json // { lat: number, lng: number }
+  destination       String
+  destinationGPS    Json // { lat: number, lng: number }
+  stops             Json? // [{ lat, lng, name }]
+  departureTime     DateTime
+  estimatedArrival  DateTime
+  estimatedDuration String
+  totalDistance     Float?
+  disposition       String?
+  price             Float? // 💰 <-- Nouveau champ ajouté
+  nbplaces          Int        @default(1)
+  status           TrajetStatus  @default(PENDING) // 🔹 ajouté
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  commandes         Commande[]
+}
+
+model Commande {
+  id           String         @id @default(uuid())
+  user         User           @relation(fields: [userId], references: [id])
+  userId       String
+  trajet       Trajet         @relation(fields: [trajetId], references: [id])
+  trajetId     String
+  typeCommande VehicleType    @relation(fields: [typeId], references: [id])
+  typeId       String
+  price        Float
+  status       CommandeStatus @default(PENDING)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model FileManager {
+  id           Int      @id @default(autoincrement())
+  fileCode     String   @unique
+  fileName     String
+  fileMimeType String
+  fileSize     Int
+  fileUrl      String
+  fileType     String // Ex : 'userFiles', 'vehicleFiles', 'menuItemFiles'
+  targetId     String // UUID de l’élément lié
+  filePath     String? // <-- nouveau champ optionnel pour stocker le chemin local
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+}
+
+model Wallet {
+  id            String        @id @default(uuid())
+  balance       Float         @default(0)
+  userId        String        @unique
+  paymentMethod PaymentMethod @default(MOBILE_MONEY)
+  rechargeType  String        @default("WAVE")
+  user          User          @relation(fields: [userId], references: [id])
+  transactions  Transaction[]
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  nomPrenom String
+  email     String
+  phone     String
+  objets    String?
+  contents  String
+  source    String?  @default("contact_form_client")
+  timestamp DateTime @default(now())
+
+  @@map("contacts") // nom de table en BD
+}
+
+// --- NOUVELLES TABLES ---
+
+model Slider {
+  id          String   @id @default(uuid())
+  imageUrl    String?
+  label       String?
+  description String?
+  status      Status   @default(ACTIVE) // ✅ Utilisation de l'enum Status
+  // Relation avec User (qui a ajouté le slider)
+  addedById   String
+  addedBy     User     @relation(fields: [addedById], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Publicite {
+  id          String   @id @default(uuid())
+  title       String
+  smallTitle  String?
+  description String?
+  files       String? // URL ou chemin du fichier (image/vidéo)
+  typeFiles   TypeFile // ENUM IMAGE ou VIDEO
+  status      Status   @default(ACTIVE) // ✅ Utilisation de l'enum Status
+  // Relation avec User (qui a ajouté la pub)
+  addedById   String
+  addedBy     User     @relation(fields: [addedById], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Reglage {
+  id                String   @id @default(uuid())
+  footerDescription String?
+  assistanceLine    String? // Ligne d’assistance
+  emplacement       String? // Localisation
+  email             String?
+  fbUrl             String?
+  linkedinUrl       String?
+  xUrl              String?
+  headerLogo        String? // ✅ Logo d’en-tête (upload)
+  footerLogo        String? // ✅ Logo de pied de page (upload)
+  status            Status   @default(ACTIVE) // ✅ Utilisation de l'enum Status
+  addedById         String
+  addedBy           User     @relation(fields: [addedById], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model BunessPartner {
+  id          String   @id @default(uuid())
+  libeller    String
+  description String?
+  logo        String?
+  status      Status   @default(ACTIVE) // ✅ Utilisation de l'enum Status
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Message {
+  id          String        @id @default(uuid()) // UUID comme identifiant principal
+  label       String?
+  text        String?
+  imageUrl    String?
+  timestamp   DateTime      @default(now())
+  sender      MessageSender
+  senderId    String
+  senderUser  User          @relation("UserMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  repliedToId String? // doit être String pour matcher l'id de Message
+  repliedTo   Message?      @relation("ReplyTo", fields: [repliedToId], references: [id])
+  replies     Message[]     @relation("ReplyTo")
+  lastOrderId String? // UUID d'un Trip, EcommerceOrder ou Delivery (nullable)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Transaction {
+  id                String          @id @default(uuid())
+  amount            Float // ⬅ changer Int → Float
+  transactionNumber String?         @unique // 🆕 Optionnel avec @unique
+  type              TransactionType
+  walletId          String
+  wallet            Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  userId            String // ✅ Ajouté pour tracer l'utilisateur concerné
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reference         String? // ✅ Ex: ID de commande, ID de trajet...
+  description       String? // ✅ Ex: "Commission 18% prélevée pour la commande XYZ"
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @default(now()) @updatedAt
+}
+
+model PaymentMethodes {
+  id        String   @id @default(uuid())
+  name      String
+  logo      String?
+  status    Status   @default(ACTIVE) // ACTIVE | INACTIVE
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
