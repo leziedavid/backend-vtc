@@ -7,6 +7,7 @@ import { PaginationParamsDto } from 'src/common/dto/request/pagination-params.dt
 import { CreateVehicleDto, UpdateVehicleDto, VehicleDto } from 'src/common/dto/request/vehicle.dto';
 import { VehicleService } from './vehicle.service';
 import { AssignDriverDto } from 'src/common/dto/request/assign-driver.dto';
+import { Role } from '@prisma/client';
 
 @ApiTags('Vehicle Api')
 @ApiBearerAuth('access-token')
@@ -86,13 +87,16 @@ export class VehicleController {
     @ApiOperation({ summary: 'Récupérer les véhicules du partenaire ou driver connecté avec pagination' })
     @ApiQuery({ name: 'page', required: false, type: Number })
     @ApiQuery({ name: 'limit', required: false, type: Number })
-    async getVehiclesByOwner(
-        @Req() req: any,
-        @Query() params: PaginationParamsDto,
-    ) {
+    async getVehiclesByOwner(@Req() req: any, @Query() params: PaginationParamsDto,) {
         const user = req.user as any;
+        let userId = "";
+        if (user.role === Role.PARTENAIRE) {
+            userId = user.partnerId;
+        } else {
+            userId = user.id;
+        }
         // On transmet l'id et le role de l'utilisateur connecté + pagination
-        return this.vehicleService.findVehicles(user.id, user.role, params);
+        return this.vehicleService.findVehicles(userId, user.role, params);
     }
 
     /** --------------------- Affecter ou retirer un driver --------------------- */
@@ -101,14 +105,13 @@ export class VehicleController {
     @ApiOperation({ summary: 'Affecter ou retirer un driver à un véhicule' })
     @ApiResponse({ status: 200, description: 'Driver affecté ou retiré.' })
     @ApiConsumes('application/json')
-    async assignDriver(  @Param('id') vehicleId: string, @Body() dto: AssignDriverDto,
+    async assignDriver(@Param('id') vehicleId: string, @Body() dto: AssignDriverDto,
     ) {
         return this.vehicleService.assignDriver(vehicleId, dto.driverId, dto.action);
     }
 
 
 
-    /** --------------------- Récupérer les drivers assignés --------------------- */
     /** --------------------- Récupérer les drivers assignés à un véhicule --------------------- */
     @UseGuards(JwtAuthGuard)
     @Get(':id/drivers')

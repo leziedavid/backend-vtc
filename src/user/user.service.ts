@@ -30,12 +30,17 @@ export class UserService {
             const hashedPassword = await bcrypt.hash(password, 10);
             const userStatus = allData.role !== 'ADMIN' ? 'INACTIVE' : 'ACTIVE';
 
+            // verifier qsi l'eamail exite
+            const emailExist = await this.prisma.user.findUnique({ where: { email: allData.email } });
+            if (emailExist) throw new BadRequestException('Email déjà utilisé');
+
             // 1️⃣ Création de l'utilisateur
             const user = await this.generic.create({
                 ...allData,
                 password: hashedPassword,
                 status: userStatus,
             });
+
 
             // 2️⃣ Upload des images si présentes
             if (images?.length) {
@@ -59,7 +64,7 @@ export class UserService {
                 await this.prisma.partner.create({
                     data: {
                         name: user.name,
-                        users: { connect: { id: user.id } }, // lie le partenaire à l'utilisateur
+                        users: { connect: { id: user.id } },
                     },
                 });
             }
@@ -67,6 +72,8 @@ export class UserService {
             return new BaseResponse(201, 'Utilisateur créé avec succès', user);
 
         } catch (error) {
+            // ✅ Si c’est une erreur NestJS (BadRequestException, NotFoundException, etc.), on la relance telle quelle
+            if (error instanceof BadRequestException) throw error;
             console.error('[UserService.create] ❌', error);
             throw new InternalServerErrorException('Erreur lors de la création de l’utilisateur');
         }
@@ -90,7 +97,9 @@ export class UserService {
 
             return new BaseResponse(200, 'Utilisateur mis à jour avec succès', updatedUser);
         } catch (error) {
-            console.error('[UserService.update] ❌', error);
+            // ✅ Si c’est une erreur NestJS (BadRequestException, NotFoundException, etc.), on la relance telle quelle
+            if (error instanceof BadRequestException) throw error;
+            console.error('[UserService.create] ❌', error);
             throw new InternalServerErrorException('Erreur lors de la mise à jour de l’utilisateur');
         }
     }
@@ -231,7 +240,7 @@ export class UserService {
 
             // 🔹 2️⃣ Récupération des drivers liés à ce partenaire
             const drivers = await this.prisma.user.findMany({
-                where: { role: 'DRIVER', partnerId: userId },
+                where: { role: 'DRIVER', partnerId: partner.partnerId },
                 include: { vehicles: { include: { type: true } } },
             });
 
@@ -299,7 +308,7 @@ export class UserService {
                 // Nouveau
                 conditions: {
                     role: 'DRIVER',
-                    partnerId: userId,
+                    partnerId: partner.partnerId,
                 },
                 selectAndInclude: {
                     select: {
@@ -316,6 +325,7 @@ export class UserService {
                 },
                 orderBy: { createdAt: 'desc' },
             });
+            console.log("🔹 resultat", baseData);
 
             // 🔹 2️⃣ On enrichit manuellement les relations "vehicles" et "type"
             const userIds = baseData.data.map((u) => u.id);

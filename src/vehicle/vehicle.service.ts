@@ -32,13 +32,18 @@ export class VehicleService {
             const typeExists = await this.prisma.vehicleType.findUnique({ where: { id: typeId } });
             if (!typeExists) throw new BadRequestException('Type de véhicule introuvable');
 
+
             // 🔹 Si aucun driver n’est fourni → utiliser le partner comme driver par défaut
+            let partnerIdGenerate = "";
             if (driverIds.length === 0) {
                 const partner = await this.prisma.user.findUnique({ where: { id: partnerId } });
+                console.log("🔹 id par defaut", partner);
                 if (!partner) throw new BadRequestException('Partenaire introuvable');
                 driverIds = [partnerId];
+                partnerIdGenerate = partner.partnerId;
             }
 
+            console.log("🔹 id par defaut", partnerId);
             // 🔹 Vérification des drivers
             const drivers = await this.prisma.user.findMany({ where: { id: { in: driverIds } } });
             if (drivers.length !== driverIds.length) throw new BadRequestException('Un ou plusieurs conducteurs introuvables');
@@ -55,7 +60,7 @@ export class VehicleService {
                     seats: seats !== undefined ? Number(seats) : undefined,
                     status,
                     type: { connect: { id: typeId } },
-                    partner: { connect: { id: partnerId } },
+                    partner: { connect: { id: partnerIdGenerate } },
                     drivers: { connect: driverIds.map((id) => ({ id })), },
                 },
                 include: { drivers: true, type: true, partner: true },
@@ -457,7 +462,7 @@ export class VehicleService {
     }
 
     /** -------------------- Affecter ou retirer un driver -------------------- */
-    async assignDriver( vehicleId: string,  driverId: string | string[], action: 'assign' | 'remove' = 'assign'): Promise<BaseResponse<Vehicle>> {
+    async assignDriver(vehicleId: string, driverId: string | string[], action: 'assign' | 'remove' = 'assign'): Promise<BaseResponse<Vehicle>> {
         try {
             const vehicle = await this.prisma.vehicle.findUnique({
                 where: { id: vehicleId },
