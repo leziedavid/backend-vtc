@@ -53,6 +53,9 @@ async function bootstrap() {
       'access-token',
     )
     .addServer('http://localhost:4000', 'Local')
+    .addServer('https://api.covoitivoire.com', 'Production')
+    .addServer('http://37.60.241.35:4000', 'dev')
+
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
