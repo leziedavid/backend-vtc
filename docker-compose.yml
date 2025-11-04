@@ -9,22 +9,22 @@ services:
     ports:
       - "4000:4000"
     volumes:
-      - /peoogo/storage:/app/uploads   # dossier storage sur le VPS
+      - /david/storage:/app/uploads   # dossier storage sur le VPS
     environment:
       NODE_ENV: production
       PORT: 4000
-      DATABASE_URL: "postgresql://microservices:microservices@ms-postgres:5432/mseagrie?schema=public"
+      DATABASE_URL: "postgresql://microservices:microservices@ms-postgres:5432/backend?schema=public"
       JWT_SECRET: "72f21bf2916454b01dd8"
-      JWT_ACCESS_EXPIRE: "15m"
+      JWT_ACCESS_EXPIRE: "24h"
       JWT_REFRESH_EXPIRE: "1d"
       COOKIE_EXPIRE: "5d"
       CLOUDINARY_CLOUD_NAME: "dtakbf3ha"
       CLOUDINARY_API_KEY: "196581248868223"
       CLOUDINARY_API_SECRET: "_IN5L1lB4JNqh-t_csNWSb3z5W0"
       FILE_STORAGE_PATH: "/app/uploads"
-      SERVEUR_URL: "https://api.peoogo.com"
-      # SERVEUR_URL: "http://109.199.107.23:4000"
-      # SERVEUR_URL: "api.https://peoogo.com:4000"
+      # SERVEUR_URL: "https://api.covoitivoire.com"
+      SERVEUR_URL: "http://37.60.241.35:4000"
+      # SERVEUR_URL: "api.https://covoitivoire.com:4000"
     networks:
       - dockerfiles_microservices-net   # réseau existant pour DB
     restart: always
