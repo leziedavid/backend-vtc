@@ -71,7 +71,7 @@ export class VehicleService {
             return new BaseResponse(201, 'Véhicule créé avec succès', vehicle);
         } catch (error) {
             console.error('[VehicleService.create] ❌', error);
-            throw new InternalServerErrorException('Erreur lors de la création du véhicule');
+            throw new InternalServerErrorException('Erreur lors de la création du véhicule', error);
         }
     }
 
